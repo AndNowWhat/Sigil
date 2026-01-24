@@ -1,0 +1,91 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '7.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Publish
+      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+
+    - name: List publish folder
+      run: dir ./publish
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Sigil
+        path: ./publish/Sigil.exe
+
+    - name: Delete existing release and tag
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        # Delete the existing release if it exists
+        release_id=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          https://api.github.com/repos/${{ github.repository }}/releases/tags/latest | jq -r '.id')
+
+        if [ "$release_id" != "null" ] && [ -n "$release_id" ]; then
+          echo "Deleting existing release with ID: $release_id"
+          curl -s -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/${{ github.repository }}/releases/$release_id
+        else
+          echo "No existing release found with the tag 'latest'."
+        fi
+
+        # Delete the tag if it exists
+        git tag -d latest 2>/dev/null || true
+        git push origin :refs/tags/latest 2>/dev/null || true
+
+    - name: Create Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: 'latest'
+        release_name: 'Latest Build'
+        body: |
+          Automated build from the latest commit on main.
+
+          ## Download
+          Download `Sigil.exe` below - no installation required, just run it.
+
+          ## Requirements
+          - Windows 10/11 (x64)
+          - RS3 client installed
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./publish/Sigil.exe
+        asset_name: Sigil.exe
+        asset_content_type: application/octet-stream
