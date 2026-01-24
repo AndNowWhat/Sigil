@@ -47,4 +47,4 @@ Inspired by [Bolt Launcher](https://codeberg.org/Adamcake/Bolt).
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0 - see [LICENSE](LICENSE) for details.
