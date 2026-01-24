@@ -1,0 +1,60 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Bb]uild/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# User-specific files
+*.rsuser
+*.log
+
+# Build outputs
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NCrunch
+*.ncrunch*
+_NCrunch_*
+
+# Publish
+publish/
+
+# Misc
+*.tmp
+*.bak
+*.swp
+*~
+
+# Third party
+third_party/
+
+# IDE and tool settings
+.claude/
+.vscode/
