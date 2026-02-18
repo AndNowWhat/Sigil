@@ -8,8 +8,11 @@ public sealed class AppSettings
     // Path to RS3 client executable - launched DIRECTLY with JX_SESSION_ID
     public string? Rs3ClientPath { get; set; } = @"C:\ProgramData\Jagex\launcher\rs2client.exe";
 
-    // Seconds to wait between character creations (and between retries)
-    public int CharacterCreationDelaySeconds { get; set; } = 60;
+    // How many characters to create per batch before waiting
+    public int CharacterCreationBatchSize { get; set; } = 3;
+
+    // Minutes to wait between batches
+    public int CharacterCreationBatchWindowMinutes { get; set; } = 7;
 
     public string OAuthOrigin { get; set; } = "https://account.jagex.com";
     public string OAuthRedirectUri { get; set; } = "https://secure.runescape.com/m=weblogin/launcher-redirect";

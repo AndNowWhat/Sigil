@@ -14,7 +14,8 @@ internal sealed record AccountCreationBatch(
     string DisplayName,
     string RsSessionToken,
     int ToCreate,
-    int DelaySeconds);
+    int BatchSize,
+    int BatchWindowMinutes);
 
 public sealed class CharacterCreationQueueService : IDisposable
 {
@@ -42,7 +43,7 @@ public sealed class CharacterCreationQueueService : IDisposable
     /// <summary>
     /// Queues auto-creation for the given account. Returns false if already queued or already at max.
     /// </summary>
-    public Task<bool> EnqueueAsync(AccountProfile account, string rsSessionToken, int delaySeconds = 60, CancellationToken ct = default)
+    public Task<bool> EnqueueAsync(AccountProfile account, string rsSessionToken, int batchSize = 3, int batchWindowMinutes = 7, CancellationToken ct = default)
     {
         if (_queuedAccountIds.Contains(account.AccountId))
         {
@@ -62,7 +63,7 @@ public sealed class CharacterCreationQueueService : IDisposable
         PendingCountChanged?.Invoke(PendingCount);
 
         _channel.Writer.TryWrite(
-            new AccountCreationBatch(account.AccountId, account.DisplayName, rsSessionToken, toCreate, delaySeconds));
+            new AccountCreationBatch(account.AccountId, account.DisplayName, rsSessionToken, toCreate, batchSize, batchWindowMinutes));
 
         EnsureWorker();
         return Task.FromResult(true);
@@ -91,6 +92,8 @@ public sealed class CharacterCreationQueueService : IDisposable
     private async Task ProcessBatchAsync(AccountCreationBatch batch, CancellationToken ct)
     {
         int created = 0, skipped = 0;
+        int inWindow = 0; // characters created in the current batch window
+
         for (int i = 0; i < batch.ToCreate && !ct.IsCancellationRequested; i++)
         {
             bool success = false;
@@ -104,6 +107,7 @@ public sealed class CharacterCreationQueueService : IDisposable
                     var updated = await _jagexService.CreateGameAccountAsync(batch.RsSessionToken, ct);
                     CharacterCreated?.Invoke(batch.AccountId, updated);
                     created++;
+                    inWindow++;
                     success = true;
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -112,24 +116,35 @@ public sealed class CharacterCreationQueueService : IDisposable
                                       ex.Message.Contains("TOO_MANY_ACCOUNTS", StringComparison.OrdinalIgnoreCase);
                     if (attempt < 5)
                     {
-                        var wait = isRateLimit ? batch.DelaySeconds * 2 : batch.DelaySeconds;
+                        int retrySecs = isRateLimit ? batch.BatchWindowMinutes * 60 : 10;
                         StatusUpdated?.Invoke(
-                            $"[{batch.DisplayName}] {(isRateLimit ? "Rate limited" : "Failed")} (attempt {attempt}/5), retrying in {wait}s...");
-                        await Task.Delay(TimeSpan.FromSeconds(wait), ct).ConfigureAwait(false);
+                            $"[{batch.DisplayName}] {(isRateLimit ? "Rate limited" : "Failed")} (attempt {attempt}/5)," +
+                            $" retrying in {retrySecs}s...");
+                        await Task.Delay(TimeSpan.FromSeconds(retrySecs), ct).ConfigureAwait(false);
                     }
                     else
                     {
                         skipped++;
-                        StatusUpdated?.Invoke(
-                            $"[{batch.DisplayName}] Skipped after 5 failures: {ex.Message}");
+                        StatusUpdated?.Invoke($"[{batch.DisplayName}] Skipped after 5 failures: {ex.Message}");
                     }
                 }
             }
 
-            // Cool-down after each successful creation before the next one
-            if (success && (i < batch.ToCreate - 1 || PendingCount > 0))
-                await Task.Delay(TimeSpan.FromSeconds(batch.DelaySeconds), ct).ConfigureAwait(false);
+            if (!success) continue;
+
+            bool windowFull = inWindow >= batch.BatchSize;
+            bool moreToCreate = i < batch.ToCreate - 1;
+
+            if (windowFull && moreToCreate)
+            {
+                // Completed a full batch window — wait before starting the next group
+                StatusUpdated?.Invoke(
+                    $"[{batch.DisplayName}] Batch of {batch.BatchSize} done. Waiting {batch.BatchWindowMinutes} min before next group...");
+                await Task.Delay(TimeSpan.FromMinutes(batch.BatchWindowMinutes), ct).ConfigureAwait(false);
+                inWindow = 0;
+            }
         }
+
         BatchCompleted?.Invoke(batch.AccountId, created, skipped);
     }
 

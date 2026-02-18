@@ -509,7 +509,8 @@ namespace Sigil
                 return;
             }
             StatusText = $"Queuing auto-creation for {SelectedAccount.DisplayName}...";
-            var queued = await _creationQueue.EnqueueAsync(SelectedAccount, token.RuneScapeSessionToken, Settings.CharacterCreationDelaySeconds);
+            var queued = await _creationQueue.EnqueueAsync(SelectedAccount, token.RuneScapeSessionToken,
+                Settings.CharacterCreationBatchSize, Settings.CharacterCreationBatchWindowMinutes);
             if (!queued)
                 StatusText = $"{SelectedAccount.DisplayName} already at max or already queued.";
         }
