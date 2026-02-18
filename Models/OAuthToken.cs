@@ -11,6 +11,7 @@ public sealed class OAuthToken
     public string? IdToken { get; set; }
     public string? Subject { get; set; }
     public string? SessionId { get; set; }
+    public string? RuneScapeSessionToken { get; set; }
 
     public bool IsExpired(TimeSpan? skew = null)
     {

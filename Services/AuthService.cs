@@ -94,6 +94,8 @@ public sealed class AuthService
         var refreshed = ParseToken(json, token.RefreshToken);
         refreshed.SessionId = token.SessionId;
         refreshed.Subject ??= token.Subject;
+        refreshed.IdToken ??= token.IdToken;
+        refreshed.RuneScapeSessionToken = token.RuneScapeSessionToken;
         return refreshed;
     }
 

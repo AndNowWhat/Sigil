@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Sigil"
         mc:Ignorable="d"
-        Title="Sigil" Height="500" Width="700"
+        Title="Sigil" Height="580" Width="700"
         WindowStartupLocation="CenterScreen"
         Background="#1a1a2e">
 
@@ -141,6 +141,8 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
     <Grid>
@@ -188,6 +190,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -204,20 +207,68 @@
                                Foreground="{StaticResource TextPrimary}"/>
                 </StackPanel>
 
-                <!-- Characters -->
-                <TextBlock Grid.Row="1" Text="Characters"
-                           FontSize="14" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimary}"
-                           Margin="0,0,0,8"/>
+                <!-- Characters header row -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <ListBox Grid.Row="2"
+                    <TextBlock Grid.Column="0"
+                               Text="Characters"
+                               FontSize="14" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding CharacterCountText}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondary}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Content="+ Create"
+                                Style="{StaticResource SmallButton}"
+                                IsEnabled="{Binding CanCreateCharacter}"
+                                Click="OnCreateCharacter"/>
+                        <Button Content="Auto"
+                                Style="{StaticResource SmallButton}"
+                                IsEnabled="{Binding CanAutoCreate}"
+                                Click="OnAutoCreateCharacters"
+                                Margin="4,0,0,0"
+                                ToolTip="Automatically fill this account to 20 characters (30s between each)"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Queue status row -->
+                <Grid Grid.Row="2" Margin="0,0,0,8"
+                      Visibility="{Binding IsQueueActive, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding QueueStatusText}"
+                               Foreground="#aaaaaa"
+                               FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="Cancel Queue"
+                            Click="OnCancelQueue"
+                            Style="{StaticResource SmallButton}"
+                            Margin="8,0,0,0"/>
+                </Grid>
+
+                <ListBox Grid.Row="3"
                          ItemsSource="{Binding SelectedCharacters}"
                          SelectedItem="{Binding SelectedCharacter}"
                          DisplayMemberPath="DisplayLabel"
                          Style="{StaticResource ModernListBox}"/>
 
                 <!-- Launch Button -->
-                <Button Grid.Row="3" Content="Launch Game"
+                <Button Grid.Row="4" Content="Launch Game"
                         Style="{StaticResource PrimaryButton}"
                         Click="OnLaunch"
                         Margin="0,16,0,0"
@@ -225,7 +276,7 @@
                         FontSize="16"/>
 
                 <!-- Advanced Settings Expander -->
-                <Expander Grid.Row="4" Header="Advanced Settings" Margin="0,16,0,0" IsExpanded="False">
+                <Expander Grid.Row="5" Header="Advanced Settings" Margin="0,16,0,0" IsExpanded="False">
                     <StackPanel Margin="0,12,0,0">
                         <!-- Client Path -->
                         <TextBlock Text="RS3 Client Path"
@@ -246,23 +297,52 @@
                                     Margin="8,0,0,0"/>
                         </Grid>
 
+                        <!-- Character creation delay -->
+                        <TextBlock Text="Character creation delay (seconds)"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding Settings.CharacterCreationDelaySeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource ModernTextBox}"
+                                 Margin="0,0,0,12"
+                                 Width="80"
+                                 HorizontalAlignment="Left"/>
+
                         <!-- Actions -->
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Refresh Token" Style="{StaticResource SmallButton}"
                                     Click="OnRefreshToken" Margin="0,0,8,0"/>
                             <Button Content="Save Settings" Style="{StaticResource SmallButton}"
-                                    Click="OnSaveSettings"/>
+                                    Click="OnSaveSettings" Margin="0,0,8,0"/>
+                            <Button Content="Token Info" Style="{StaticResource SmallButton}"
+                                    Click="OnShowTokenInfo"/>
                         </StackPanel>
                     </StackPanel>
                 </Expander>
             </Grid>
         </Grid>
 
-        <!-- Status Bar -->
-        <Border Grid.Row="1" Background="{StaticResource BackgroundCard}" Padding="16,10">
-            <TextBlock Text="{Binding StatusText}"
-                       Foreground="{StaticResource TextSecondary}"
-                       FontSize="12"/>
+        <!-- Log Panel -->
+        <Border Grid.Row="1" Background="{StaticResource BackgroundCard}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0"
+                Height="100">
+            <ScrollViewer x:Name="LogScrollViewer"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="16,6">
+                <ItemsControl ItemsSource="{Binding LogLines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11"
+                                       FontFamily="Consolas"
+                                       TextWrapping="NoWrap"
+                                       Margin="0,1"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
         </Border>
     </Grid>
 </Window>

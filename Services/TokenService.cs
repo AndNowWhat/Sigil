@@ -26,7 +26,8 @@ public sealed class TokenService
             IdToken = token.IdToken,
             ExpiresAt = token.ExpiresAt,
             Subject = token.Subject,
-            SessionId = token.SessionId
+            SessionId = token.SessionId,
+            RuneScapeSessionToken = token.RuneScapeSessionToken
         };
 
         await JsonFileStore.SaveAsync(
@@ -56,7 +57,8 @@ public sealed class TokenService
             ExpiresAt = cache.ExpiresAt == default ? DateTimeOffset.UtcNow : cache.ExpiresAt,
             IdToken = cache.IdToken,
             Subject = cache.Subject,
-            SessionId = cache.SessionId
+            SessionId = cache.SessionId,
+            RuneScapeSessionToken = cache.RuneScapeSessionToken
         };
     }
 
@@ -81,5 +83,6 @@ public sealed class TokenService
         public DateTimeOffset ExpiresAt { get; set; }
         public string? Subject { get; set; }
         public string? SessionId { get; set; }
+        public string? RuneScapeSessionToken { get; set; }
     }
 }

@@ -11,8 +11,9 @@ public sealed class LauncherService
     /// <summary>
     /// Launches the RS3 game client directly with session credentials.
     /// The game client reads JX_SESSION_ID, JX_CHARACTER_ID, and JX_DISPLAY_NAME from environment variables.
+    /// Returns the started process so the caller can inject into it (e.g. agent DLL).
     /// </summary>
-    public Task LaunchAsync(AppSettings settings, OAuthToken? token, GameAccount? selectedCharacter)
+    public Task<Process> LaunchAsync(AppSettings settings, OAuthToken? token, GameAccount? selectedCharacter)
     {
         var exePath = settings.Rs3ClientPath;
 
@@ -33,7 +34,6 @@ public sealed class LauncherService
         };
 
         // Set the JX_* environment variables that the game client expects
-        // These are the standard Jagex environment variables for session authentication
         if (token != null && !string.IsNullOrWhiteSpace(token.SessionId))
         {
             startInfo.Environment["JX_SESSION_ID"] = token.SessionId;
@@ -48,7 +48,9 @@ public sealed class LauncherService
             }
         }
 
-        Process.Start(startInfo);
-        return Task.CompletedTask;
+        var process = Process.Start(startInfo);
+        if (process == null)
+            throw new InvalidOperationException("Failed to start the game process.");
+        return Task.FromResult(process);
     }
 }

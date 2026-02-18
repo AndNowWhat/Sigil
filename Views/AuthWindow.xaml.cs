@@ -271,6 +271,8 @@ public partial class AuthWindow : Window
             _pendingToken.SessionId = sessionId;
             _pendingToken.Subject ??= JwtHelper.TryGetSubject(idToken);
             _log?.Invoke($"Session created. SessionId={sessionId}");
+            StatusText.Text = "Finalizing login...";
+            await TryExtractRuneScapeSessionCookieAsync(_pendingToken);
             Complete(_pendingToken);
         }
         catch (Exception ex)
@@ -375,6 +377,124 @@ public partial class AuthWindow : Window
         }
 
         return Array.Empty<string>();
+    }
+
+    public string? CookieDebugLog { get; private set; }
+
+    private async Task TryExtractRuneScapeSessionCookieAsync(OAuthToken token)
+    {
+        const string cookieName = "runescape-accounts__session-token";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== RuneScape Cookie Extraction Debug ===");
+        sb.AppendLine($"Time: {DateTimeOffset.UtcNow:u}");
+        sb.AppendLine();
+
+        try
+        {
+            // Dump cookies across all relevant domains before navigation
+            string[] probeUrls =
+            {
+                "https://account.runescape.com",
+                "https://secure.runescape.com",
+                "https://runescape.com",
+                "https://account.jagex.com",
+            };
+
+            sb.AppendLine("--- Cookies BEFORE navigation ---");
+            foreach (var url in probeUrls)
+            {
+                var allCookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync(url);
+                sb.AppendLine($"[{url}] ({allCookies.Count} cookie(s))");
+                foreach (var c in allCookies)
+                    sb.AppendLine($"  {c.Name}={TruncateValue(c.Value)}  domain={c.Domain}  path={c.Path}  httpOnly={c.IsHttpOnly}  secure={c.IsSecure}");
+            }
+            sb.AppendLine();
+
+            // Check if the target cookie is already present
+            var rsCookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync("https://account.runescape.com");
+            var match = FindCookie(rsCookies, cookieName);
+
+            if (match != null)
+            {
+                sb.AppendLine($"✓ '{cookieName}' already present BEFORE navigation.");
+            }
+            else
+            {
+                sb.AppendLine($"✗ '{cookieName}' not present. Navigating to account.runescape.com/en-GB/game ...");
+
+                var navDone = new TaskCompletionSource<bool>();
+                string? finalUrl = null;
+
+                void OnNavCompleted(object? s, CoreWebView2NavigationCompletedEventArgs e)
+                {
+                    finalUrl = Browser.CoreWebView2?.Source;
+                    navDone.TrySetResult(e.IsSuccess);
+                }
+
+                Browser.CoreWebView2.NavigationCompleted += OnNavCompleted;
+                Browser.CoreWebView2.Navigate("https://account.runescape.com/en-GB/game");
+
+                var completed = await Task.WhenAny(navDone.Task, Task.Delay(TimeSpan.FromSeconds(12)));
+                Browser.CoreWebView2.NavigationCompleted -= OnNavCompleted;
+
+                bool navSuccess = completed == navDone.Task && navDone.Task.Result;
+                sb.AppendLine($"Navigation result: success={navSuccess}  finalUrl={finalUrl ?? "(unknown)"}");
+                sb.AppendLine();
+
+                // Dump cookies after navigation
+                sb.AppendLine("--- Cookies AFTER navigation ---");
+                foreach (var url in probeUrls)
+                {
+                    var allCookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync(url);
+                    sb.AppendLine($"[{url}] ({allCookies.Count} cookie(s))");
+                    foreach (var c in allCookies)
+                        sb.AppendLine($"  {c.Name}={TruncateValue(c.Value)}  domain={c.Domain}  path={c.Path}  httpOnly={c.IsHttpOnly}  secure={c.IsSecure}");
+                }
+                sb.AppendLine();
+
+                rsCookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync("https://account.runescape.com");
+                match = FindCookie(rsCookies, cookieName);
+            }
+
+            if (match != null)
+            {
+                token.RuneScapeSessionToken = match.Value;
+                sb.AppendLine($"✓ SUCCESS: '{cookieName}' extracted (length={match.Value.Length}).");
+                _log?.Invoke("RuneScape session cookie extracted.");
+            }
+            else
+            {
+                sb.AppendLine($"✗ FAILED: '{cookieName}' not found after navigation.");
+                _log?.Invoke("RuneScape session cookie not found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"EXCEPTION: {ex}");
+            _log?.Invoke($"Cookie extraction error: {ex.Message}");
+        }
+
+        CookieDebugLog = sb.ToString();
+        _log?.Invoke(CookieDebugLog);
+    }
+
+    private static string TruncateValue(string value)
+    {
+        if (value.Length <= 20) return value;
+        return value[..12] + "…(" + value.Length + " chars)";
+    }
+
+    private static CoreWebView2Cookie? FindCookie(
+        IReadOnlyList<CoreWebView2Cookie> cookies,
+        string name)
+    {
+        foreach (var c in cookies)
+        {
+            if (string.Equals(c.Name, name, StringComparison.Ordinal))
+                return c;
+        }
+        return null;
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)
