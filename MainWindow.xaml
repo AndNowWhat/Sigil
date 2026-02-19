@@ -229,10 +229,11 @@
                                VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                          <Button Content="Refresh Characters"
+                          <Button Content="Refresh Char"
                                 Click="OnRefreshCharacters"
                                 Style="{StaticResource SmallButton}"
-                                Margin="4,0,0,0"/>
+                                Margin="4,0,0,0"
+                                ToolTip="Refresh the characters for this account"/>
                         <Button Content="+ Create"
                                 Style="{StaticResource SmallButton}"
                                 IsEnabled="{Binding CanCreateCharacter}"
