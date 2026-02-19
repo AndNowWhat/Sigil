@@ -515,6 +515,33 @@ namespace Sigil
                 StatusText = $"{SelectedAccount.DisplayName} already at max or already queued.";
         }
 
+        private async void OnRefreshCharacters(object sender, RoutedEventArgs e)
+        {
+            if (SelectedAccount == null)
+            {
+                StatusText = "Select an account first";
+                return;
+            }
+
+            try
+            {
+                var token = await _tokenService.LoadAsync(SelectedAccount.AccountId);
+                if (token == null)
+                {
+                    StatusText = "Token missing. Re-add account.";
+                    return;
+                }
+
+                await LoadCharactersAsync(SelectedAccount, token);
+                UpdateSelectedCharacters();
+                StatusText = "Characters refreshed";
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Failed to refresh characters: {ex.Message}";
+            }
+        }
+
         private void OnCancelQueue(object sender, RoutedEventArgs e)
         {
             _creationQueue.CancelAll();

@@ -229,6 +229,10 @@
                                VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
+                          <Button Content="Refresh Characters"
+                                Click="OnRefreshCharacters"
+                                Style="{StaticResource SmallButton}"
+                                Margin="4,0,0,0"/>
                         <Button Content="+ Create"
                                 Style="{StaticResource SmallButton}"
                                 IsEnabled="{Binding CanCreateCharacter}"
