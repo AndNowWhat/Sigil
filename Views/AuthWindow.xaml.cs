@@ -15,6 +15,7 @@ public partial class AuthWindow : Window
     private readonly AuthService _authService;
     private readonly AppSettings _settings;
     private readonly Action<string>? _log;
+    private readonly ProxyConfig? _proxy;
     private readonly TaskCompletionSource<OAuthToken> _tcs = new();
     private string? _expectedState;
     private string? _verifier;
@@ -22,12 +23,13 @@ public partial class AuthWindow : Window
     private bool _completed;
     private OAuthToken? _pendingToken;
 
-    public AuthWindow(AuthService authService, AppSettings settings, Action<string>? log)
+    public AuthWindow(AuthService authService, AppSettings settings, Action<string>? log, ProxyConfig? proxy = null)
     {
         InitializeComponent();
         _authService = authService;
         _settings = settings;
         _log = log;
+        _proxy = proxy;
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -42,7 +44,13 @@ public partial class AuthWindow : Window
     {
         try
         {
-            await Browser.EnsureCoreWebView2Async();
+            CoreWebView2Environment? env = null;
+            if (_proxy is { Enabled: true } && !string.IsNullOrWhiteSpace(_proxy.Host))
+            {
+                var options = new CoreWebView2EnvironmentOptions($"--proxy-server={_proxy.ToUri()}");
+                env = await CoreWebView2Environment.CreateAsync(null, null, options);
+            }
+            await Browser.EnsureCoreWebView2Async(env);
             Browser.CoreWebView2.NavigationStarting += OnNavigationStarting;
             Browser.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             StartLogin();

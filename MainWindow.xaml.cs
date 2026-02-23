@@ -23,6 +23,7 @@ namespace Sigil
         private readonly AuthService _authService = new();
         private readonly LauncherService _launcherService = new();
         private readonly JagexAccountService _jagexAccountService = new();
+        private readonly ProxInjectService _proxInjectService = new();
         private readonly CharacterCreationQueueService _creationQueue;
 
         private AccountProfile? _selectedAccount;
@@ -70,6 +71,8 @@ namespace Sigil
 
                 _selectedAccount = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(ProxyDisplayText));
+                ApplyProxyToServices();
                 UpdateSelectedCharacters();
                 Settings.LastSelectedAccountId = _selectedAccount?.AccountId;
                 _ = _settingsStore.SaveAsync(Settings);
@@ -115,6 +118,9 @@ namespace Sigil
         public bool CanAutoCreate =>
             _selectedAccount != null && _selectedAccount.GameAccounts.Count < 20;
 
+        public string ProxyDisplayText =>
+            _selectedAccount?.Proxy?.ToDisplayString() ?? "None";
+
         public string QueueStatusText
         {
             get => _queueStatusText;
@@ -147,6 +153,7 @@ namespace Sigil
             SelectedAccount = Accounts.FirstOrDefault(a => a.AccountId == Settings.LastSelectedAccountId)
                 ?? Accounts.FirstOrDefault();
 
+            UpdateProxInjectStatus();
             await UpdateStatusAsync();
         }
 
@@ -155,7 +162,7 @@ namespace Sigil
             try
             {
                 StatusText = "Opening browser for login...";
-                var authWindow = new AuthWindow(_authService, Settings, null)
+                var authWindow = new AuthWindow(_authService, Settings, null, SelectedAccount?.Proxy)
                 {
                     Owner = this
                 };
@@ -282,7 +289,8 @@ namespace Sigil
                 await _accountStore.SaveAsync(Accounts);
 
                 var character = SelectedCharacter ?? SelectedAccount.GameAccounts.FirstOrDefault();
-                await _launcherService.LaunchAsync(Settings, token, character);
+                await _launcherService.LaunchAsync(Settings, token, character, SelectedAccount.Proxy,
+                    msg => Dispatcher.Invoke(() => AppendLog(msg)));
 
                 StatusText = "Game launched";
             }
@@ -548,6 +556,84 @@ namespace Sigil
             StatusText = "Queue cancelled.";
             IsQueueActive = false;
             QueueStatusText = string.Empty;
+        }
+
+        private void ApplyProxyToServices()
+        {
+            var proxy = _selectedAccount?.Proxy;
+            _authService.SetProxy(proxy);
+            _jagexAccountService.SetProxy(proxy);
+        }
+
+        private async void OnConfigureProxy(object sender, RoutedEventArgs e)
+        {
+            if (SelectedAccount == null) return;
+            var dialog = new ProxyDialog(SelectedAccount.Proxy ?? new ProxyConfig()) { Owner = this };
+            if (dialog.ShowDialog() == true)
+            {
+                SelectedAccount.Proxy = dialog.Result;
+                await _accountStore.SaveAsync(Accounts);
+                OnPropertyChanged(nameof(ProxyDisplayText));
+                ApplyProxyToServices();
+                StatusText = dialog.Result.Enabled
+                    ? $"Proxy set: {dialog.Result.ToDisplayString()}"
+                    : "Proxy disabled";
+            }
+        }
+
+        private async void OnDownloadProxInject(object sender, RoutedEventArgs e)
+        {
+            if (ProxInjectService.IsInstalled)
+            {
+                MessageBox.Show("ProxInject is already installed.", "Sigil");
+                return;
+            }
+
+            var result = MessageBox.Show(
+                "Sigil needs to download ProxInject (a third-party open-source tool) to proxy game client traffic.\n\n" +
+                $"Download URL:\n{ProxInjectService.DownloadUrl}\n\n" +
+                "Source: https://github.com/PragmaTwice/proxinject\n\n" +
+                "Do you want to download and install it now?",
+                "Download ProxInject",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                ProxInjectDownloadBtn.IsEnabled = false;
+                ProxInjectStatusText.Text = "Downloading...";
+                StatusText = "Downloading ProxInject...";
+
+                await _proxInjectService.DownloadAsync(msg => Dispatcher.Invoke(() => AppendLog(msg)));
+
+                ProxInjectStatusText.Text = "Installed";
+                ProxInjectDownloadBtn.Content = "Reinstall";
+                ProxInjectDownloadBtn.IsEnabled = true;
+                StatusText = "ProxInject installed successfully";
+            }
+            catch (Exception ex)
+            {
+                ProxInjectStatusText.Text = "Failed";
+                ProxInjectDownloadBtn.IsEnabled = true;
+                StatusText = $"ProxInject download failed: {ex.Message}";
+                MessageBox.Show($"Download failed:\n{ex.Message}", "Sigil");
+            }
+        }
+
+        private void UpdateProxInjectStatus()
+        {
+            if (ProxInjectService.IsInstalled)
+            {
+                ProxInjectStatusText.Text = "Installed";
+                ProxInjectDownloadBtn.Content = "Reinstall";
+            }
+            else
+            {
+                ProxInjectStatusText.Text = "Not installed";
+                ProxInjectDownloadBtn.Content = "Download ProxInject";
+            }
         }
 
         private void OnWindowClosed(object? sender, EventArgs e)

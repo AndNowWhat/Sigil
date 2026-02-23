@@ -12,7 +12,12 @@ namespace Sigil.Services;
 
 public sealed class AuthService
 {
-    private readonly HttpClient _httpClient = new();
+    private HttpClient _httpClient = new();
+
+    public void SetProxy(ProxyConfig? proxy)
+    {
+        _httpClient = ProxyHttpClientFactory.Create(proxy);
+    }
 
     public AuthStart BeginLogin(AppSettings settings)
     {

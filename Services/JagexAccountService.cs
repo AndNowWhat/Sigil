@@ -12,7 +12,12 @@ namespace Sigil.Services;
 
 public sealed class JagexAccountService
 {
-    private readonly HttpClient _httpClient = new(new HttpClientHandler { UseCookies = false });
+    private HttpClient _httpClient = new(new HttpClientHandler { UseCookies = false });
+
+    public void SetProxy(ProxyConfig? proxy)
+    {
+        _httpClient = ProxyHttpClientFactory.Create(proxy, useCookies: false);
+    }
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true

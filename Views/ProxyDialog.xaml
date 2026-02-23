@@ -1,0 +1,98 @@
+<Window x:Class="Sigil.Views.ProxyDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Proxy Settings"
+        Height="340"
+        Width="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1a1a2e">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="BackgroundCard" Color="#16213e"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#ffffff"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#a0a0a0"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#2a2a4a"/>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style x:Key="FieldBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource BackgroundCard}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="CaretBrush" Value="{StaticResource TextPrimary}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="90"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Enable -->
+        <CheckBox x:Name="EnabledCheck" Grid.Row="0" Grid.ColumnSpan="2"
+                  Content="Enable proxy for this account"
+                  Foreground="{StaticResource TextPrimary}"
+                  Margin="0,0,0,12"/>
+
+        <!-- Type -->
+        <TextBlock Grid.Row="1" Text="Type:" Style="{StaticResource FieldLabel}"/>
+        <ComboBox x:Name="TypeCombo" Grid.Row="1" Grid.Column="1"
+                  Margin="0,0,0,8" Height="28">
+            <ComboBoxItem Content="SOCKS5" Tag="Socks5"/>
+            <ComboBoxItem Content="HTTP" Tag="Http"/>
+        </ComboBox>
+
+        <!-- Host -->
+        <TextBlock Grid.Row="2" Text="Host:" Style="{StaticResource FieldLabel}"/>
+        <TextBox x:Name="HostBox" Grid.Row="2" Grid.Column="1"
+                 Style="{StaticResource FieldBox}" Margin="0,0,0,8"/>
+
+        <!-- Port -->
+        <TextBlock Grid.Row="3" Text="Port:" Style="{StaticResource FieldLabel}"/>
+        <TextBox x:Name="PortBox" Grid.Row="3" Grid.Column="1"
+                 Style="{StaticResource FieldBox}" Margin="0,0,0,8" Width="80" HorizontalAlignment="Left"/>
+
+        <!-- Username -->
+        <TextBlock Grid.Row="4" Text="Username:" Style="{StaticResource FieldLabel}"/>
+        <TextBox x:Name="UsernameBox" Grid.Row="4" Grid.Column="1"
+                 Style="{StaticResource FieldBox}" Margin="0,0,0,8"/>
+
+        <!-- Password -->
+        <TextBlock Grid.Row="5" Text="Password:" Style="{StaticResource FieldLabel}"/>
+        <PasswordBox x:Name="PasswordBox" Grid.Row="5" Grid.Column="1"
+                     Background="{StaticResource BackgroundCard}"
+                     Foreground="{StaticResource TextPrimary}"
+                     BorderBrush="{StaticResource BorderColor}"
+                     BorderThickness="1"
+                     Margin="0,0,0,8"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="80" Margin="0,0,8,0" Content="Cancel" Click="OnCancel"
+                    Foreground="{StaticResource TextPrimary}" Background="{StaticResource BackgroundCard}"
+                    BorderBrush="{StaticResource BorderColor}"/>
+            <Button Width="80" Content="OK" IsDefault="True" Click="OnOk"
+                    Foreground="{StaticResource TextPrimary}" Background="#e94560"
+                    BorderBrush="#e94560"/>
+        </StackPanel>
+    </Grid>
+</Window>
