@@ -10,4 +10,5 @@ public sealed class AccountProfile
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastUsedAt { get; set; }
     public List<GameAccount> GameAccounts { get; set; } = new();
+    public ProxyConfig? Proxy { get; set; }
 }
