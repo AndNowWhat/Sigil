@@ -1,0 +1,36 @@
+<Window x:Class="Sigil.Views.SteamImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import Steam Account"
+        Height="360"
+        Width="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Choose a locally remembered Steam account"
+                   Margin="0,0,0,12"/>
+
+        <ListBox x:Name="AccountsList"
+                 Grid.Row="1"
+                 DisplayMemberPath="DisplayLabel"/>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="Cancel"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    Click="OnCancel"/>
+            <Button Content="Import"
+                    Width="80"
+                    IsDefault="True"
+                    Click="OnImport"/>
+        </StackPanel>
+    </Grid>
+</Window>

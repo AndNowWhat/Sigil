@@ -23,6 +23,8 @@ namespace Sigil
         private readonly AuthService _authService = new();
         private readonly LauncherService _launcherService = new();
         private readonly JagexAccountService _jagexAccountService = new();
+        private readonly SteamAccountService _steamAccountService = new();
+        private readonly SteamLaunchService _steamLaunchService;
         private readonly ProxInjectService _proxInjectService = new();
         private readonly CharacterCreationQueueService _creationQueue;
 
@@ -41,6 +43,7 @@ namespace Sigil
             LogLines.CollectionChanged += (_, _) => LogScrollViewer.ScrollToBottom();
 
             _creationQueue = new CharacterCreationQueueService(_jagexAccountService);
+            _steamLaunchService = new SteamLaunchService(_steamAccountService);
             _creationQueue.CharacterCreated   += OnQueueCharacterCreated;
             _creationQueue.BatchCompleted     += OnQueueBatchCompleted;
             _creationQueue.PendingCountChanged += OnQueueCountChanged;
@@ -72,6 +75,9 @@ namespace Sigil
                 _selectedAccount = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ProxyDisplayText));
+                OnPropertyChanged(nameof(AccountTypeText));
+                OnPropertyChanged(nameof(IsSteamAccountSelected));
+                OnPropertyChanged(nameof(IsJagexAccountSelected));
                 ApplyProxyToServices();
                 UpdateSelectedCharacters();
                 Settings.LastSelectedAccountId = _selectedAccount?.AccountId;
@@ -110,16 +116,29 @@ namespace Sigil
         }
 
         public string CharacterCountText =>
-            $"{_selectedAccount?.GameAccounts.Count ?? 0} / 20";
+            _selectedAccount == null
+                ? "0 / 20"
+                : _selectedAccount.Provider == AccountProvider.Steam
+                    ? "Steam profile"
+                    : $"{_selectedAccount.GameAccounts.Count} / 20";
 
         public bool CanCreateCharacter =>
-            _selectedAccount != null && (_selectedAccount.GameAccounts.Count < 20);
+            _selectedAccount?.Provider == AccountProvider.Jagex && _selectedAccount.GameAccounts.Count < 20;
 
         public bool CanAutoCreate =>
-            _selectedAccount != null && _selectedAccount.GameAccounts.Count < 20;
+            _selectedAccount?.Provider == AccountProvider.Jagex && _selectedAccount.GameAccounts.Count < 20;
 
         public string ProxyDisplayText =>
             _selectedAccount?.Proxy?.ToDisplayString() ?? "None";
+
+        public string AccountTypeText =>
+            _selectedAccount?.ProviderLabel ?? "None";
+
+        public bool IsSteamAccountSelected =>
+            _selectedAccount?.Provider == AccountProvider.Steam;
+
+        public bool IsJagexAccountSelected =>
+            _selectedAccount?.Provider != AccountProvider.Steam;
 
         public string QueueStatusText
         {
@@ -158,6 +177,24 @@ namespace Sigil
         }
 
         private async void OnAddAccount(object sender, RoutedEventArgs e)
+        {
+            var addDialog = new AddAccountDialog { Owner = this };
+            if (addDialog.ShowDialog() != true || addDialog.SelectedProvider == null)
+            {
+                StatusText = "Canceled";
+                return;
+            }
+
+            if (addDialog.SelectedProvider == AccountProvider.Steam)
+            {
+                await AddSteamAccountAsync();
+                return;
+            }
+
+            await AddJagexAccountAsync();
+        }
+
+        private async Task AddJagexAccountAsync()
         {
             try
             {
@@ -216,6 +253,78 @@ namespace Sigil
             }
         }
 
+        private async Task AddSteamAccountAsync()
+        {
+            try
+            {
+                StatusText = "Loading local Steam accounts...";
+                var localAccounts = _steamAccountService.GetLocalAccounts(Settings)
+                    .Where(a => a.RememberPassword)
+                    .ToList();
+
+                if (localAccounts.Count == 0)
+                {
+                    MessageBox.Show(
+                        "No remembered Steam accounts were found.\nEnable 'Remember me' in Steam, then retry.",
+                        "Sigil");
+                    StatusText = "Ready";
+                    return;
+                }
+
+                var importDialog = new SteamImportDialog(localAccounts) { Owner = this };
+                if (importDialog.ShowDialog() != true || importDialog.SelectedAccount == null)
+                {
+                    StatusText = "Canceled";
+                    return;
+                }
+
+                var steamAccount = importDialog.SelectedAccount;
+                if (Accounts.Any(a =>
+                        a.Provider == AccountProvider.Steam &&
+                        string.Equals(a.SteamId64, steamAccount.SteamId64, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show("This Steam account already exists.", "Sigil");
+                    StatusText = "Ready";
+                    return;
+                }
+
+                var characterDialog = new InputDialog("RuneScape character name for this Steam account:", "Steam Character")
+                {
+                    Owner = this
+                };
+                characterDialog.ShowDialog();
+                var characterName = characterDialog.Response;
+                if (string.IsNullOrWhiteSpace(characterName))
+                {
+                    StatusText = "Canceled";
+                    return;
+                }
+
+                var profile = new AccountProfile
+                {
+                    AccountId = $"steam:{steamAccount.SteamId64}",
+                    Provider = AccountProvider.Steam,
+                    DisplayName = string.IsNullOrWhiteSpace(steamAccount.PersonaName)
+                        ? steamAccount.AccountName
+                        : steamAccount.PersonaName,
+                    SteamId64 = steamAccount.SteamId64,
+                    SteamAccountName = steamAccount.AccountName,
+                    SteamPersonaName = steamAccount.PersonaName,
+                    SteamCharacterName = characterName.Trim()
+                };
+
+                Accounts.Add(profile);
+                await _accountStore.SaveAsync(Accounts);
+                SelectedAccount = profile;
+                StatusText = "Steam account imported";
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Failed: {ex.Message}";
+                MessageBox.Show(ex.Message, "Sigil");
+            }
+        }
+
         private async void OnRemoveAccount(object sender, RoutedEventArgs e)
         {
             if (SelectedAccount == null) return;
@@ -230,13 +339,21 @@ namespace Sigil
             Accounts.Remove(SelectedAccount);
             SelectedAccount = Accounts.FirstOrDefault();
             await _accountStore.SaveAsync(Accounts);
-            await _tokenService.DeleteAsync(accountId);
+            if (!accountId.StartsWith("steam:", StringComparison.OrdinalIgnoreCase))
+            {
+                await _tokenService.DeleteAsync(accountId);
+            }
             StatusText = "Account removed";
         }
 
         private async void OnRefreshToken(object sender, RoutedEventArgs e)
         {
             if (SelectedAccount == null) return;
+            if (SelectedAccount.Provider != AccountProvider.Jagex)
+            {
+                StatusText = "Steam accounts do not use Jagex tokens";
+                return;
+            }
 
             try
             {
@@ -270,6 +387,31 @@ namespace Sigil
             try
             {
                 StatusText = "Launching...";
+                if (SelectedAccount.Provider == AccountProvider.Steam)
+                {
+                    var switched = await _steamLaunchService.EnsureActiveAccountAsync(
+                        Settings,
+                        SelectedAccount,
+                        msg => Dispatcher.Invoke(() => AppendLog(msg)));
+
+                    if (!switched)
+                    {
+                        var steamName = SelectedAccount.SteamAccountName ?? SelectedAccount.DisplayName;
+                        StatusText = "Steam switch failed";
+                        MessageBox.Show(
+                            $"Steam could not switch to '{steamName}'.\nSwitch Steam manually, then retry launch.",
+                            "Sigil");
+                        return;
+                    }
+
+                    SelectedAccount.LastUsedAt = DateTimeOffset.UtcNow;
+                    await _accountStore.SaveAsync(Accounts);
+                    await _steamLaunchService.LaunchAsync(Settings, SelectedAccount, SelectedAccount.Proxy,
+                        msg => Dispatcher.Invoke(() => AppendLog(msg)));
+                    StatusText = "Game launched";
+                    return;
+                }
+
                 var token = await _tokenService.LoadAsync(SelectedAccount.AccountId);
 
                 if (token == null)
@@ -365,6 +507,40 @@ namespace Sigil
             }
         }
 
+        private async void OnBrowseSteamExe(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Executable (*.exe)|*.exe",
+                Title = "Select Steam Executable"
+            };
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                Settings.SteamExePath = dialog.FileName;
+                await _settingsStore.SaveAsync(Settings);
+                OnPropertyChanged(nameof(Settings));
+                StatusText = "Steam path updated";
+            }
+        }
+
+        private async void OnBrowseSteamRs3Client(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Executable (*.exe)|*.exe",
+                Title = "Select Steam RuneScape Client"
+            };
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                Settings.SteamRs3ClientPath = dialog.FileName;
+                await _settingsStore.SaveAsync(Settings);
+                OnPropertyChanged(nameof(Settings));
+                StatusText = "Steam RuneScape client path updated";
+            }
+        }
+
         private async void OnSaveSettings(object sender, RoutedEventArgs e)
         {
             await _settingsStore.SaveAsync(Settings);
@@ -376,6 +552,12 @@ namespace Sigil
             if (SelectedAccount == null)
             {
                 MessageBox.Show("No account selected.", "Token Info");
+                return;
+            }
+
+            if (SelectedAccount.Provider != AccountProvider.Jagex)
+            {
+                MessageBox.Show("Steam profiles do not store Jagex tokens.", "Token Info");
                 return;
             }
 
@@ -410,6 +592,24 @@ namespace Sigil
                 return;
             }
 
+            if (SelectedAccount.Provider == AccountProvider.Steam)
+            {
+                try
+                {
+                    var current = _steamAccountService.GetCurrentAccount(Settings);
+                    StatusText = current != null &&
+                                 string.Equals(current.AccountName, SelectedAccount.SteamAccountName, StringComparison.OrdinalIgnoreCase)
+                        ? "Ready to launch via Steam"
+                        : "Steam account mismatch. Launch will attempt to switch first.";
+                }
+                catch (Exception ex)
+                {
+                    StatusText = $"Steam unavailable: {ex.Message}";
+                }
+
+                return;
+            }
+
             var token = await _tokenService.LoadAsync(SelectedAccount.AccountId);
             if (token == null)
             {
@@ -424,6 +624,11 @@ namespace Sigil
 
         private async Task LoadCharactersAsync(AccountProfile profile, OAuthToken token)
         {
+            if (profile.Provider != AccountProvider.Jagex)
+            {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(token.SessionId)) return;
 
             try
@@ -451,9 +656,23 @@ namespace Sigil
                 return;
             }
 
-            foreach (var account in SelectedAccount.GameAccounts)
+            if (SelectedAccount.Provider == AccountProvider.Steam)
             {
-                SelectedCharacters.Add(account);
+                if (!string.IsNullOrWhiteSpace(SelectedAccount.SteamCharacterName))
+                {
+                    SelectedCharacters.Add(new GameAccount
+                    {
+                        AccountId = SelectedAccount.SteamId64 ?? SelectedAccount.AccountId,
+                        DisplayName = SelectedAccount.SteamCharacterName
+                    });
+                }
+            }
+            else
+            {
+                foreach (var account in SelectedAccount.GameAccounts)
+                {
+                    SelectedCharacters.Add(account);
+                }
             }
 
             SelectedCharacter = SelectedCharacters.FirstOrDefault();
@@ -508,6 +727,11 @@ namespace Sigil
         private async void OnAutoCreateCharacters(object sender, RoutedEventArgs e)
         {
             if (SelectedAccount == null) return;
+            if (SelectedAccount.Provider != AccountProvider.Jagex)
+            {
+                StatusText = "Character creation is only available for Jagex accounts";
+                return;
+            }
             var token = await _tokenService.LoadAsync(SelectedAccount.AccountId);
             if (token == null || string.IsNullOrWhiteSpace(token.RuneScapeSessionToken))
             {
@@ -533,6 +757,12 @@ namespace Sigil
 
             try
             {
+                if (SelectedAccount.Provider != AccountProvider.Jagex)
+                {
+                    StatusText = "Steam profiles do not support character refresh";
+                    return;
+                }
+
                 var token = await _tokenService.LoadAsync(SelectedAccount.AccountId);
                 if (token == null)
                 {
@@ -562,7 +792,9 @@ namespace Sigil
         {
             var proxy = _selectedAccount?.Proxy;
             _authService.SetProxy(proxy);
-            _jagexAccountService.SetProxy(proxy);
+            _jagexAccountService.SetProxy((_selectedAccount?.Provider ?? AccountProvider.Jagex) == AccountProvider.Jagex
+                ? proxy
+                : null);
         }
 
         private async void OnConfigureProxy(object sender, RoutedEventArgs e)
