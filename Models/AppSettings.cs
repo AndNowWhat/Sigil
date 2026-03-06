@@ -7,6 +7,8 @@ public sealed class AppSettings
 
     // Path to RS3 client executable - launched DIRECTLY with JX_SESSION_ID
     public string? Rs3ClientPath { get; set; } = @"C:\ProgramData\Jagex\launcher\rs2client.exe";
+    public string? SteamExePath { get; set; }
+    public string? SteamRs3ClientPath { get; set; }
 
     // How many characters to create per batch before waiting
     public int CharacterCreationBatchSize { get; set; } = 3;

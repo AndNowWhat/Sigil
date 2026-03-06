@@ -175,7 +175,7 @@
                 <ListBox Grid.Row="1"
                          ItemsSource="{Binding Accounts}"
                          SelectedItem="{Binding SelectedAccount}"
-                         DisplayMemberPath="DisplayName"
+                         DisplayMemberPath="ListDisplayName"
                          Style="{StaticResource ModernListBox}"/>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
@@ -206,6 +206,10 @@
                     <TextBlock Text="{Binding SelectedAccount.DisplayName, FallbackValue='No account selected'}"
                                FontSize="24" FontWeight="Bold"
                                Foreground="{StaticResource TextPrimary}"/>
+                    <TextBlock Text="{Binding AccountTypeText}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondary}"
+                               Margin="0,4,0,0"/>
                     <Border Background="{StaticResource BackgroundCard}"
                             BorderBrush="{StaticResource BorderColor}"
                             BorderThickness="1" CornerRadius="6"
@@ -262,16 +266,19 @@
                                 Click="OnRefreshCharacters"
                                 Style="{StaticResource SmallButton}"
                                 Margin="0,0,4,0"
+                                Visibility="{Binding IsJagexAccountSelected, Converter={StaticResource BoolToVisibility}}"
                                 ToolTip="Refresh the characters for this account"/>
                         <Button Content="+ Create"
                                 Style="{StaticResource SmallButton}"
                                 IsEnabled="{Binding CanCreateCharacter}"
                                 Click="OnCreateCharacter"
+                                Visibility="{Binding IsJagexAccountSelected, Converter={StaticResource BoolToVisibility}}"
                                 Margin="0,0,4,0"/>
                         <Button Content="Auto"
                                 Style="{StaticResource SmallButton}"
                                 IsEnabled="{Binding CanAutoCreate}"
                                 Click="OnAutoCreateCharacters"
+                                Visibility="{Binding IsJagexAccountSelected, Converter={StaticResource BoolToVisibility}}"
                                 ToolTip="Automatically fill this account to 20 characters (30s between each)"/>
                     </StackPanel>
                 </Grid>
@@ -331,6 +338,42 @@
                                     Margin="8,0,0,0"/>
                         </Grid>
 
+                        <TextBlock Text="Steam Executable Path"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding Settings.SteamExePath, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource ModernTextBox}"/>
+                            <Button Grid.Column="1" Content="Browse"
+                                    Style="{StaticResource SmallButton}"
+                                    Click="OnBrowseSteamExe"
+                                    Margin="8,0,0,0"/>
+                        </Grid>
+
+                        <TextBlock Text="Steam RuneScape Client Path"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding Settings.SteamRs3ClientPath, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource ModernTextBox}"/>
+                            <Button Grid.Column="1" Content="Browse"
+                                    Style="{StaticResource SmallButton}"
+                                    Click="OnBrowseSteamRs3Client"
+                                    Margin="8,0,0,0"/>
+                        </Grid>
+
                         <!-- Character creation rate -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -378,11 +421,13 @@
                         <!-- Actions -->
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Refresh Token" Style="{StaticResource SmallButton}"
-                                    Click="OnRefreshToken" Margin="0,0,8,0"/>
+                                    Click="OnRefreshToken" Margin="0,0,8,0"
+                                    Visibility="{Binding IsJagexAccountSelected, Converter={StaticResource BoolToVisibility}}"/>
                             <Button Content="Save Settings" Style="{StaticResource SmallButton}"
                                     Click="OnSaveSettings" Margin="0,0,8,0"/>
                             <Button Content="Token Info" Style="{StaticResource SmallButton}"
-                                    Click="OnShowTokenInfo"/>
+                                    Click="OnShowTokenInfo"
+                                    Visibility="{Binding IsJagexAccountSelected, Converter={StaticResource BoolToVisibility}}"/>
                         </StackPanel>
                     </StackPanel>
                 </Expander>

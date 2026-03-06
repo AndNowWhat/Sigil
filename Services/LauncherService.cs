@@ -33,6 +33,7 @@ public sealed class LauncherService
         var startInfo = new ProcessStartInfo
         {
             FileName = exePath,
+            WorkingDirectory = Path.GetDirectoryName(exePath) ?? string.Empty,
             UseShellExecute = false
         };
 
